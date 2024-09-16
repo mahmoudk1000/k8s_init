@@ -1,0 +1,11 @@
+---
+- name: Force systemd to reread configs
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  listen: "restart containerd"
+- name: Restart containerd
+  ansible.builtin.systemd_service:
+    name: containerd
+    enabled: true
+    state: restarted
+  listen: "restart containerd"

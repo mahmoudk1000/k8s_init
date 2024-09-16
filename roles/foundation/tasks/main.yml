@@ -1,0 +1,128 @@
+---
+- name: Add Nodes to /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    line: '{{ hostvars[item].ansible_host }} {{ item }}'
+  with_items: "{{ groups['cluster'] }}"
+- name: Create user
+  ansible.builtin.user:
+    name: '{{ kube_user }}'
+    createhome: true
+    shell: /bin/bash
+    state: present
+- name: Allow user to have passwordless sudo
+  ansible.builtin.lineinfile:
+    dest: /etc/sudoers
+    line: '{{ kube_user }} ALL=(ALL) NOPASSWD: ALL'
+    validate: visudo -cf %s
+- name: Setup authorized keys for the user
+  ansible.posix.authorized_key:
+    user: '{{ kube_user }}'
+    key: "{{ lookup('file', '~/.ssh/id_ansible.pub') }}"
+    state: present
+- name: Install necessary dependencies
+  ansible.builtin.apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - software-properties-common
+      - python3-pip
+    state: present
+    update_cache: true
+- name: Install containerd
+  ansible.builtin.apt:
+    name: containerd
+    state: present
+- name: Restart containerd
+  ansible.builtin.systemd_service:
+    name: containerd
+    enabled: true
+    state: restarted
+- name: Add Kubernetes GPG key
+  ansible.builtin.get_url:
+    url: https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key
+    dest: /etc/apt/keyrings/kubernetes-apt-keyring.asc
+    mode: '0644'
+    force: true
+- name: Add Helm GPG key
+  ansible.builtin.apt_key:
+    url: https://baltocdn.com/helm/signing.asc
+    state: present
+    keyring: /usr/share/keyrings/helm.gpg
+- name: Add Kubernetes Repository
+  ansible.builtin.apt_repository:
+    repo: deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.asc] https://pkgs.k8s.io/core:/stable:/v1.30/deb/
+      /
+    state: present
+    filename: kubernetes
+- name: Add Helm Repository
+  ansible.builtin.apt_repository:
+    repo: deb [arch=amd64 signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/
+      all main
+    filename: helm-stable-debian
+- name: Install Kubernetes components
+  ansible.builtin.apt:
+    name: [kubelet, kubeadm, kubectl, helm]
+    state: present
+    update_cache: true
+- name: Creates containerd.conf
+  ansible.builtin.copy:
+    content: |
+      overlay
+      br_netfilter
+    dest: /etc/modules-load.d/kubernetes.conf
+    mode: '0400'
+- name: Create /etc/containers
+  ansible.builtin.file:
+    state: directory
+    path: /etc/containerd
+    mode: '0755'
+- name: Configure Containerd
+  ansible.builtin.shell:
+    cmd: containerd config default > /etc/containerd/config.toml
+    creates: /etc/containerd/config.toml
+- name: Configure containerd to work with systemd
+  ansible.builtin.replace:
+    path: /etc/containerd/config.toml
+    regexp: SystemdCgroup = false
+    replace: SystemdCgroup = true
+  notify: restart containerd
+- name: Add overlay module
+  community.general.modprobe:
+    name: overlay
+    state: present
+- name: Add overlay br_netfilter
+  community.general.modprobe:
+    name: br_netfilter
+    state: present
+- name: Set net.bridge.bridge-nf-call-iptables
+  ansible.posix.sysctl:
+    name: net.bridge.bridge-nf-call-iptables
+    value: '1'
+    sysctl_file: /etc/sysctl.d/99-kubernetes-cri.conf
+    reload: false
+- name: Set net.ipv4.ip_forward
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+    sysctl_file: /etc/sysctl.d/99-kubernetes-cri.conf
+    reload: false
+- name: Set net.bridge.bridge-nf-call-ip6tables
+  ansible.posix.sysctl:
+    name: net.bridge.bridge-nf-call-ip6tables
+    value: '1'
+    sysctl_file: /etc/sysctl.d/99-kubernetes-cri.conf
+    reload: true
+- name: Disable swap
+  ansible.builtin.command:
+    cmd: swapoff -a
+  when: ansible_swaptotal_mb > 0
+- name: Disable SWAP in fstab
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    regexp: swap
+    state: absent
+- name: Install kubernetes for Python
+  ansible.builtin.pip:
+    name: [kubernetes, PyYAML]

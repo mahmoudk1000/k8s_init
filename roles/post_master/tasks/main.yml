@@ -1,0 +1,19 @@
+---
+- name: Setup Nginx Controller
+  ansible.builtin.include_tasks:
+    file: nginx_controller.yml
+    apply:
+      become: false
+      become_user: '{{ kube_user }}'
+- name: Bash Completion for kubectl
+  ansible.builtin.include_tasks:
+    file: kubectl_cmp.yml
+    apply:
+      become: false
+      become_user: '{{ kube_user }}'
+- name: Store join_command for workers
+  ansible.builtin.include_tasks:
+    file: prepare_join.yml
+# - name: Store KubeConfig on Host
+#   ansible.builtin.include_tasks:
+#     file: store_kubeconfig.yml

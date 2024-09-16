@@ -1,0 +1,21 @@
+---
+- name: Add Nginx Ingress controller Repo
+  kubernetes.core.helm_repository:
+    name: ingress-nginx
+    repo_url: https://kubernetes.github.io/ingress-nginx
+- name: Deploy Nginx Ingress
+  kubernetes.core.helm:
+    release_name: ingress-nginx
+    chart_ref: ingress-nginx/ingress-nginx
+    release_namespace: ingress-nginx
+    create_namespace: true
+    release_state: present
+    wait: true
+    values:
+      controller:
+        service:
+          type: NodePort
+          nodePorts:
+            http: 30080
+            https: 30443
+        allowSnippetAnnotations: true

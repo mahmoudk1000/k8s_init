@@ -1,0 +1,14 @@
+---
+- name: Prep Nodes
+  hosts: cluster
+  become: true
+  become_method: ansible.builtin.sudo
+  roles: [foundation]
+- name: Setup Master
+  hosts: control_plane
+  roles: [init_master, post_master]
+- name: Setup Nodes
+  hosts: workers
+  become: true
+  become_method: ansible.builtin.sudo
+  roles: [init_node, post_node]

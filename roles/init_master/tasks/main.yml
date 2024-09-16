@@ -1,0 +1,37 @@
+---
+- name: Initialize the Kubernetes Cluster
+  become: true
+  become_method: ansible.builtin.sudo
+  ansible.builtin.command:
+    cmd: kubeadm init --pod-network-cidr={{ pod_network_cidr }}
+    creates: /etc/kubernetes/admin.conf
+- name: Create .kube directory
+  become: true
+  become_method: ansible.builtin.sudo
+  ansible.builtin.file:
+    path: /home/{{ kube_user }}/.kube
+    state: directory
+    owner: '{{ kube_user }}'
+    group: '{{ kube_user }}'
+    mode: '0755'
+- name: Copy admin.conf to user's kube config
+  become: true
+  become_method: ansible.builtin.sudo
+  ansible.builtin.copy:
+    src: /etc/kubernetes/admin.conf
+    dest: /home/{{ kube_user }}/.kube/config
+    owner: '{{ kube_user }}'
+    group: '{{ kube_user }}'
+    mode: '0600'
+    remote_src: true
+- name: Install Flannel Network Plugin
+  ansible.builtin.command:
+    cmd: kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+  environment:
+    KUBECONFIG: /home/{{ kube_user }}/.kube/config
+- name: Untaint Control Plane
+  ansible.builtin.command:
+    cmd: kubectl taint nodes --all  node-role.kubernetes.io/control-plane-
+  environment:
+    KUBECONFIG: /home/{{ kube_user }}/.kube/config
+  failed_when: false
