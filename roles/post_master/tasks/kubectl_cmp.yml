@@ -2,7 +2,7 @@
 - name: Generate kubectl completion file for bash
   ansible.builtin.command:
     cmd: kubectl completion bash
-    register: bash_completion
+  register: bash_completion
 - name: Save completion file to disk
   ansible.builtin.copy:
     content: '{{ bash_completion.stdout }}'
