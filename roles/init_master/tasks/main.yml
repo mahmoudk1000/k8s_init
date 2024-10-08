@@ -3,7 +3,10 @@
   become: true
   become_method: ansible.builtin.sudo
   ansible.builtin.command:
-    cmd: kubeadm init --pod-network-cidr={{ pod_network_cidr }}
+    cmd: |
+      kubeadm init \
+        --pod-network-cidr={{ pod_network_cidr }} \
+        --apiserver-cert-extra-sans={{ ansible_host }}
     creates: /etc/kubernetes/admin.conf
 - name: Create .kube directory
   become: true
