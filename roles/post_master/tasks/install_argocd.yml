@@ -1,0 +1,97 @@
+---
+- name: Add ArgoCD Helm repository
+  kubernetes.core.helm_repository:
+    name: argo
+    repo_url: https://argoproj.github.io/argo-helm
+  environment:
+    KUBECONFIG: /home/{{ kube_user }}/.kube/config
+- name: Create ArgoCD namespace
+  kubernetes.core.k8s:
+    name: '{{ argocd_namespace }}'
+    api_version: v1
+    kind: Namespace
+    state: present
+  environment:
+    KUBECONFIG: /home/{{ kube_user }}/.kube/config
+- name: Install ArgoCD using Helm
+  kubernetes.core.helm:
+    name: argocd
+    chart_ref: argo/argo-cd
+    chart_version: "{{ argocd_version if argocd_version != 'stable' else omit }}"
+    release_namespace: '{{ argocd_namespace }}'
+    create_namespace: true
+    values:
+      server:
+        service:
+          type: ClusterIP
+      configs:
+        params:
+          server.insecure: true
+  environment:
+    KUBECONFIG: /home/{{ kube_user }}/.kube/config
+- name: Wait for ArgoCD server deployment to be ready
+  ansible.builtin.command:
+    cmd: kubectl wait --for=condition=available deployment/argocd-server -n {{ argocd_namespace }}
+      --timeout=300s
+  environment:
+    KUBECONFIG: /home/{{ kube_user }}/.kube/config
+  register: argocd_wait
+  until: argocd_wait.rc == 0
+  retries: 5
+  delay: 10
+- name: Get ArgoCD initial admin password
+  ansible.builtin.command:
+    cmd: kubectl get secret argocd-initial-admin-secret -n {{ argocd_namespace }}
+      -o jsonpath="{.data.password}"
+  environment:
+    KUBECONFIG: /home/{{ kube_user }}/.kube/config
+  register: argocd_password_encoded
+  changed_when: false
+- name: Decode ArgoCD password
+  ansible.builtin.command:
+    cmd: echo "{{ argocd_password_encoded.stdout }}" | base64 -d
+  register: argocd_password
+  changed_when: false
+- name: Display ArgoCD access information
+  ansible.builtin.debug:
+    msg:
+      - ArgoCD has been installed successfully using Helm!
+      - 'Namespace: {{ argocd_namespace }}'
+      - 'Username: admin'
+      - 'Password: {{ argocd_password.stdout }}'
+      - 'To access ArgoCD UI, run:'
+      - '  kubectl port-forward svc/argocd-server -n {{ argocd_namespace }} 8080:443'
+      - 'Then visit: https://localhost:8080'
+      - ''
+      - 'To change the password:'
+      - '  argocd login localhost:8080'
+      - '  argocd account update-password'
+      - ''
+      - 'Helm release info:'
+      - '  helm list -n {{ argocd_namespace }}'
+- name: Save ArgoCD credentials to file
+  ansible.builtin.copy:
+    content: |
+      ArgoCD Access Information (Installed via Helm)
+      ==============================================
+      Namespace: {{ argocd_namespace }}
+      Username: admin
+      Password: {{ argocd_password.stdout }}
+      Access Instructions:
+      1. Port-forward the ArgoCD server:
+         kubectl port-forward svc/argocd-server -n {{ argocd_namespace }} 8080:443
+      2. Visit: https://localhost:8080
+      3. Login with the credentials above
+      4. Change password after first login:
+         argocd login localhost:8080
+         argocd account update-password
+      Helm Management:
+      ----------------
+      - List releases: helm list -n {{ argocd_namespace }}
+      - Upgrade: helm upgrade argocd argo/argo-cd -n {{ argocd_namespace }}
+      - Uninstall: helm uninstall argocd -n {{ argocd_namespace }}
+      Installation Date: {{ ansible_date_time.iso8601 }}
+    dest: /home/{{ kube_user }}/argocd-credentials.txt
+    owner: '{{ kube_user }}'
+    group: '{{ kube_user }}'
+    mode: '0600'

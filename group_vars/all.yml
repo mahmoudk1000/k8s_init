@@ -1,3 +1,34 @@
 ---
+# User configuration
 kube_user: '{{ ansible_user }}'
+
+# Kubernetes configuration
+kube_version: '1.30'  # Format: "1.30", "1.29", etc.
 pod_network_cidr: 10.244.0.0/16
+
+# Container runtime configuration
+container_runtime: containerd  # Options: containerd, crio
+containerd_version: latest    # Use "latest" or specific version like "1.7.13-1"
+crio_version: '1.30'  # CRI-O version, should match Kubernetes major.minor
+
+# Control plane configuration
+control_plane_endpoint: ''  # Set for HA setup (e.g., "192.168.1.100:6443")
+
+# CNI (Container Network Interface) configuration
+install_cni: true  # Set to false to skip CNI installation
+cni_plugin: flannel  # Options: flannel, calico, cilium
+# CNI-specific settings (Helm chart versions)
+calico_version: v3.27.0  # Tigera operator version
+cilium_version: 1.14.5  # Cilium chart version
+
+# Add-ons configuration
+install_argocd: false  # Set to true to install ArgoCD
+argocd_version: 5.51.6    # Helm chart version, or use specific version like "5.46.0"
+argocd_namespace: argocd
+
+# Node labels (optional, can be defined per-host in inventory)
+# Example format:
+# node_labels:
+#   environment: production
+#   role: application
+node_labels: {}

@@ -1,0 +1,33 @@
+---
+- name: Add Cilium Helm repository
+  kubernetes.core.helm_repository:
+    name: cilium
+    repo_url: https://helm.cilium.io/
+  environment:
+    KUBECONFIG: /home/{{ kube_user }}/.kube/config
+- name: Install Cilium using Helm
+  kubernetes.core.helm:
+    name: cilium
+    chart_ref: cilium/cilium
+    chart_version: '{{ cilium_version }}'
+    release_namespace: kube-system
+    values:
+      ipam:
+        operator:
+          clusterPoolIPv4PodCIDRList: ['{{ pod_network_cidr }}']
+      kubeProxyReplacement: partial
+      k8sServiceHost: '{{ ansible_default_ipv4.address }}'
+      k8sServicePort: 6443
+  environment:
+    KUBECONFIG: /home/{{ kube_user }}/.kube/config
+- name: Wait for Cilium pods to be ready
+  ansible.builtin.command:
+    cmd: kubectl wait --for=condition=ready pod -l k8s-app=cilium -n kube-system
+      --timeout=300s
+  environment:
+    KUBECONFIG: /home/{{ kube_user }}/.kube/config
+  register: cilium_wait
+  until: cilium_wait.rc == 0
+  retries: 5
+  delay: 10
+  failed_when: false

@@ -11,6 +11,13 @@
     apply:
       become: false
       become_user: '{{ kube_user }}'
+- name: Install ArgoCD
+  ansible.builtin.include_tasks:
+    file: install_argocd.yml
+    apply:
+      become: false
+      become_user: '{{ kube_user }}'
+  when: install_argocd | bool
 - name: Store join_command for workers
   ansible.builtin.include_tasks:
     file: prepare_join.yml

@@ -1,13 +1,34 @@
 ---
-- name: Initialize the Kubernetes Cluster
+- name: Check if cluster is already initialized
+  ansible.builtin.stat:
+    path: /etc/kubernetes/admin.conf
+  register: kubeadm_already_initialized
+- name: Check if this node is already in a cluster
+  ansible.builtin.command:
+    cmd: kubectl get nodes
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: existing_nodes
+  failed_when: false
+  changed_when: false
+  when: kubeadm_already_initialized.stat.exists
+- name: Set custom node name
+  ansible.builtin.set_fact:
+    kubelet_node_name: '{{ node_name | default(inventory_hostname) }}'
+- name: Initialize the first Kubernetes Control Plane
   become: true
   become_method: ansible.builtin.sudo
   ansible.builtin.command:
-    cmd: |
-      kubeadm init \
-        --pod-network-cidr={{ pod_network_cidr }} \
-        --apiserver-cert-extra-sans={{ ansible_host }}
-    creates: /etc/kubernetes/admin.conf
+    cmd: >
+      kubeadm init
+      --pod-network-cidr={{ pod_network_cidr }}
+      --node-name={{ kubelet_node_name }}
+      {% if control_plane_endpoint %}--control-plane-endpoint={{ control_plane_endpoint }}
+      --upload-certs{% endif %}
+  when:
+    - not kubeadm_already_initialized.stat.exists
+    - inventory_hostname == groups['control_plane'][0]
+  register: kubeadm_init_output
 - name: Create .kube directory
   become: true
   become_method: ansible.builtin.sudo
@@ -27,14 +48,40 @@
     group: '{{ kube_user }}'
     mode: '0600'
     remote_src: true
-- name: Install Flannel Network Plugin
-  ansible.builtin.command:
-    cmd: kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
-  environment:
-    KUBECONFIG: /home/{{ kube_user }}/.kube/config
+- name: Install Flannel CNI
+  ansible.builtin.include_tasks:
+    file: install_flannel.yml
+  when:
+    - install_cni | bool
+    - cni_plugin == "flannel"
+    - inventory_hostname == groups['control_plane'][0]
+- name: Install Calico CNI
+  ansible.builtin.include_tasks:
+    file: install_calico.yml
+  when:
+    - install_cni | bool
+    - cni_plugin == "calico"
+    - inventory_hostname == groups['control_plane'][0]
+- name: Install Cilium CNI
+  ansible.builtin.include_tasks:
+    file: install_cilium.yml
+  when:
+    - install_cni | bool
+    - cni_plugin == "cilium"
+    - inventory_hostname == groups['control_plane'][0]
 - name: Untaint Control Plane
   ansible.builtin.command:
     cmd: kubectl taint nodes --all  node-role.kubernetes.io/control-plane-
   environment:
     KUBECONFIG: /home/{{ kube_user }}/.kube/config
   failed_when: false
+  when: inventory_hostname == groups['control_plane'][0]
+- name: Apply node labels for control plane
+  ansible.builtin.command:
+    cmd: kubectl label node {{ kubelet_node_name }} {{ item.key }}={{ item.value
+      }} --overwrite
+  environment:
+    KUBECONFIG: /home/{{ kube_user }}/.kube/config
+  loop: '{{ (node_labels | default({})) | dict2items }}'
+  when: [node_labels is defined, node_labels | length > 0]
+  delegate_to: "{{ groups['control_plane'][0] }}"

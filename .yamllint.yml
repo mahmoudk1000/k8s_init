@@ -1,0 +1,21 @@
+---
+extends: default
+rules:
+  line-length:
+    max: 200
+    level: warning
+  indentation:
+    spaces: 2
+    indent-sequences: true
+  comments:
+    min-spaces-from-content: 1
+  comments-indentation: {}
+  document-start: disable
+  truthy:
+    check-keys: false
+ignore: |-
+  .github/
+  .git/
+  venv/
+  __pycache__/
+  *.pyc

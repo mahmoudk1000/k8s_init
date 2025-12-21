@@ -1,0 +1,33 @@
+---
+- name: Add Calico Helm repository
+  kubernetes.core.helm_repository:
+    name: projectcalico
+    repo_url: https://docs.tigera.io/calico/charts
+  environment:
+    KUBECONFIG: /home/{{ kube_user }}/.kube/config
+- name: Install Calico using Helm
+  kubernetes.core.helm:
+    name: calico
+    chart_ref: projectcalico/tigera-operator
+    chart_version: '{{ calico_version }}'
+    release_namespace: tigera-operator
+    create_namespace: true
+    values:
+      installation:
+        calicoNetwork:
+          ipPools:
+            - cidr: '{{ pod_network_cidr }}'
+              encapsulation: VXLAN
+  environment:
+    KUBECONFIG: /home/{{ kube_user }}/.kube/config
+- name: Wait for Calico pods to be ready
+  ansible.builtin.command:
+    cmd: kubectl wait --for=condition=ready pod -l k8s-app=calico-node -n calico-system
+      --timeout=300s
+  environment:
+    KUBECONFIG: /home/{{ kube_user }}/.kube/config
+  register: calico_wait
+  until: calico_wait.rc == 0
+  retries: 5
+  delay: 10
+  failed_when: false

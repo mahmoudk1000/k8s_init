@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# Ansible
+*.retry
+.galaxy_cache/
+
+# Testing
+.cache/
+.pytest_cache/
+.molecule/
+.tox/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Secrets
+*.pem
+*.key
+id_rsa*
+*.vault
+.env
+
+# CI/CD
+trivy-results.sarif
+
+# Temporary files
+*.tmp
+tmp/

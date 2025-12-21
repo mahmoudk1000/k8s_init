@@ -1,0 +1,55 @@
+---
+# Ansible-lint configuration
+profile: production
+
+exclude_paths:
+  - .git/
+  - .github/
+  - venv/
+  - __pycache__/
+  - '*.pyc'
+  - .cache/
+
+# Enable offline mode for faster linting
+offline: false
+
+# Skip specific rules if needed
+skip_list:
+  - yaml[line-length]
+  - name[casing]  # Allow flexible naming
+  - risky-file-permissions  # We set specific permissions intentionally
+  - command-instead-of-module  # Sometimes command is necessary
+
+# Warn on certain rules instead of failing
+warn_list:
+  - experimental
+  - no-changed-when
+  - no-handler
+
+# Enable checking of var naming
+var_naming_pattern: "^[a-z_][a-z0-9_]*$"
+
+# Allow certain Ansible features
+enable_list:
+  - no-same-owner
+
+# Set the kinds of tasks to check
+kinds:
+  - playbook
+  - role
+  - tasks
+  - handlers
+  - vars
+
+# Mock modules and roles for linting
+mock_modules:
+  - kubernetes.core.helm
+  - kubernetes.core.helm_repository
+  - kubernetes.core.k8s
+  - community.general.modprobe
+  - ansible.posix.sysctl
+
+mock_roles: []
+
+# Use custom rules directory if exists
+# rulesdir: []

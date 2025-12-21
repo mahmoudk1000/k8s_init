@@ -4,11 +4,11 @@
   become: true
   become_method: ansible.builtin.sudo
   roles: [foundation]
-- name: Setup Master
-  hosts: control_plane
+- name: Initialize Primary Control Plane
+  hosts: control_plane[0]
   roles: [init_master, post_master]
-- name: Setup Nodes
-  hosts: workers
+- name: Join Additional Control Planes and Workers
+  hosts: control_plane:workers:!control_plane[0]
   become: true
   become_method: ansible.builtin.sudo
   roles: [init_node, post_node]

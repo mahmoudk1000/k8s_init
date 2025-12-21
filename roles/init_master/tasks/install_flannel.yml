@@ -1,0 +1,35 @@
+---
+- name: Add Flannel Helm repository
+  kubernetes.core.helm_repository:
+    name: flannel
+    repo_url: https://flannel-io.github.io/flannel/
+  environment:
+    KUBECONFIG: /home/{{ kube_user }}/.kube/config
+- name: Create kube-flannel namespace
+  kubernetes.core.k8s:
+    name: kube-flannel
+    api_version: v1
+    kind: Namespace
+    state: present
+  environment:
+    KUBECONFIG: /home/{{ kube_user }}/.kube/config
+- name: Install Flannel using Helm
+  kubernetes.core.helm:
+    name: flannel
+    chart_ref: flannel/flannel
+    release_namespace: kube-flannel
+    create_namespace: true
+    values:
+      podCidr: '{{ pod_network_cidr }}'
+  environment:
+    KUBECONFIG: /home/{{ kube_user }}/.kube/config
+- name: Wait for Flannel pods to be ready
+  ansible.builtin.command:
+    cmd: kubectl wait --for=condition=ready pod -l app=flannel -n kube-flannel --timeout=300s
+  environment:
+    KUBECONFIG: /home/{{ kube_user }}/.kube/config
+  register: flannel_wait
+  until: flannel_wait.rc == 0
+  retries: 5
+  delay: 10
+  failed_when: false

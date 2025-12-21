@@ -1,0 +1,76 @@
+# Example Inventory File for Kubernetes Cluster
+
+# ============================================
+# Single Control Plane Configuration Example
+# ============================================
+# [control_plane]
+# master ansible_host=192.168.1.10 node_name=k8s-master-01 node_labels='{"zone":"us-east","role":"master"}'
+
+# [workers]
+# worker1 ansible_host=192.168.1.20 node_name=k8s-worker-01 node_labels='{"zone":"us-east","workload":"backend"}'
+# worker2 ansible_host=192.168.1.21 node_name=k8s-worker-02 node_labels='{"zone":"us-west","workload":"frontend"}'
+
+# ============================================
+# High Availability (HA) Configuration Example
+# ============================================
+# [control_plane]
+# master1 ansible_host=192.168.1.10 node_name=k8s-master-01 node_labels='{"zone":"us-east"}'
+# master2 ansible_host=192.168.1.11 node_name=k8s-master-02 node_labels='{"zone":"us-west"}'
+# master3 ansible_host=192.168.1.12 node_name=k8s-master-03 node_labels='{"zone":"us-central"}'
+
+# [workers]
+# worker1 ansible_host=192.168.1.20 node_name=k8s-worker-01 node_labels='{"environment":"production","tier":"frontend"}'
+# worker2 ansible_host=192.168.1.21 node_name=k8s-worker-02 node_labels='{"environment":"production","tier":"backend"}'
+# worker3 ansible_host=192.168.1.22 node_name=k8s-worker-03 node_labels='{"environment":"production","tier":"database"}'
+# worker4 ansible_host=192.168.1.23 node_name=k8s-worker-04 node_labels='{"environment":"staging","tier":"general"}'
+
+# ============================================
+# Current Active Configuration
+# ============================================
+[control_plane]
+master ansible_host=108.142.236.82 node_name=k8s-master-01 node_labels='{"node-role":"master","zone":"us-east"}'
+# Uncomment below to add more control plane nodes for HA
+# master2 ansible_host=108.142.236.83 node_name=k8s-master-02 node_labels='{"node-role":"master","zone":"us-west"}'
+
+[workers]
+worker1 ansible_host=108.143.75.163 node_name=k8s-worker-01 node_labels='{"node-role":"worker","zone":"us-east","workload":"backend"}'
+worker2 ansible_host=172.211.20.41 node_name=k8s-worker-02 node_labels='{"node-role":"worker","zone":"us-east","workload":"frontend"}'
+# Add more workers as needed
+# worker3 ansible_host=172.211.20.42 node_name=k8s-worker-03 node_labels='{"node-role":"worker","zone":"us-west","workload":"database"}'
+
+# ============================================
+# Group Definitions
+# ============================================
+[cluster:children]
+control_plane
+workers
+
+# ============================================
+# Global Variables for All Nodes
+# ============================================
+[cluster:vars]
+ansible_user=azureuser
+ansible_ssh_private_key_file=~/.ssh/id_rsa
+# Uncomment below for custom SSH port
+# ansible_port=22
+
+# ============================================
+# Node Labels Format
+# ============================================
+# Node labels should be in JSON format as a string
+# node_labels='{"key1":"value1","key2":"value2"}'
+# 
+# Common label examples:
+# - Environment: environment=production|staging|development
+# - Zone/Region: zone=us-east|us-west|eu-central
+# - Workload type: workload=frontend|backend|database|ml
+# - Hardware: disk=ssd|hdd, gpu=true|false
+# - Tier: tier=critical|standard|burstable
+
+# ============================================
+# Optional Host Variables
+# ============================================
+# You can also set per-host variables like:
+# - node_name: Custom Kubernetes node name
+# - node_labels: Node-specific labels (overrides global labels)
+# - ansible_python_interpreter: Custom Python path

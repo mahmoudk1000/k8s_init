@@ -1,0 +1,177 @@
+# Example Global Variables Configuration
+# Copy this file to group_vars/all.yml and customize as needed
+
+---
+# ============================================
+# User Configuration
+# ============================================
+# The user account for Kubernetes operations
+# This should be an existing user on all nodes
+kube_user: '{{ ansible_user }}'
+
+# ============================================
+# Kubernetes Version Configuration
+# ============================================
+# Kubernetes version to install (major.minor format)
+# Available versions: https://kubernetes.io/releases/
+# Examples: "1.30", "1.29", "1.28", "1.27"
+kube_version: "1.30"
+
+# ============================================
+# Network Configuration
+# ============================================
+# Pod network CIDR for Flannel CNI
+# Make sure this doesn't overlap with your node network
+pod_network_cidr: 10.244.0.0/16
+
+# Service CIDR (optional, defaults to 10.96.0.0/12)
+# service_cidr: 10.96.0.0/12
+
+# ============================================
+# Container Runtime Configuration
+# ============================================
+# Choose your container runtime
+# Options: "containerd" or "crio"
+container_runtime: "containerd"
+
+# Containerd version (only used if container_runtime == "containerd")
+# Use "latest" for the latest available version
+# Or specify exact version like "1.7.13-1"
+containerd_version: "latest"
+
+# CRI-O version (only used if container_runtime == "crio")
+# Should typically match the Kubernetes major.minor version
+# Examples: "1.30", "1.29", "1.28"
+crio_version: "1.30"
+
+# ============================================
+# High Availability Configuration
+# ============================================
+# Control plane endpoint for HA setups
+# Leave empty for single control plane
+# For HA, this should be a load balancer address or VIP
+# Example: "k8s-lb.example.com:6443" or "192.168.1.100:6443"
+control_plane_endpoint: ""
+
+# ============================================
+# CNI (Container Network Interface) Configuration
+# ============================================
+# Install CNI plugin automatically using Helm
+install_cni: true  # Set to false to skip CNI installation and install manually
+
+# CNI plugin selection
+# Options: "flannel", "calico", "cilium"
+cni_plugin: "flannel"
+
+# Flannel - Simple overlay network (default)
+# - Lightweight and easy to set up
+# - Great for basic deployments
+# - Installed via Helm chart
+
+# Calico - Advanced networking with network policies
+# - Full network policy support
+# - BGP routing capability
+# - Great for production environments
+# - Installed via Tigera operator Helm chart
+calico_version: "v3.27.0"  # Tigera operator Helm chart version
+
+# Cilium - eBPF-based networking
+# - Advanced security features
+# - High performance
+# - API-aware network security
+# - Installed via official Cilium Helm chart
+cilium_version: "1.14.5"  # Cilium Helm chart version
+
+# ============================================
+# Add-ons Configuration
+# ============================================
+# ArgoCD - GitOps Continuous Delivery (Installed via Helm)
+install_argocd: false  # Set to true to install ArgoCD
+argocd_version: "5.51.6"  # Helm chart version (e.g., "5.51.6", "5.46.0")
+argocd_namespace: "argocd"
+
+# When ArgoCD is installed:
+# - Credentials saved to ~/argocd-credentials.txt on master
+# - Access via: kubectl port-forward svc/argocd-server -n argocd 8080:443
+# - Manage via: helm list -n argocd
+
+# ============================================
+# Node Labels (Global)
+# ============================================
+# These labels will be applied to ALL nodes
+# Individual node labels can override these in the inventory
+# Use this for common labels across all nodes
+node_labels: {}
+
+# Example global labels:
+# node_labels:
+#   environment: production
+#   region: us-east
+#   managed-by: ansible
+
+# ============================================
+# Advanced Options
+# ============================================
+
+# Kubernetes API server advertise address (optional)
+# Useful if node has multiple network interfaces
+# apiserver_advertise_address: "192.168.1.10"
+
+# Additional kubeadm init flags (optional)
+# kubeadm_init_extra_args: ""
+
+# Additional kubeadm join flags (optional)
+# kubeadm_join_extra_args: ""
+
+# Enable metrics server (optional, default: false)
+# metrics_server_enabled: true
+
+# ============================================
+# Example Configurations
+# ============================================
+
+# --- Example 1: Basic Single Control Plane with Containerd and Flannel ---
+# kube_version: "1.30"
+# container_runtime: "containerd"
+# containerd_version: "latest"
+# pod_network_cidr: 10.244.0.0/16
+# control_plane_endpoint: ""
+# install_cni: true
+# cni_plugin: "flannel"
+# install_argocd: false
+
+# --- Example 2: HA Setup with Calico and ArgoCD ---
+# kube_version: "1.29"
+# container_runtime: "crio"
+# crio_version: "1.29"
+# pod_network_cidr: 192.168.0.0/16
+# control_plane_endpoint: "k8s-lb.example.com:6443"
+# install_cni: true
+# cni_plugin: "calico"
+# calico_version: "v3.27.0"
+# install_argocd: true
+# argocd_version: "stable"
+# node_labels:
+#   environment: production
+#   datacenter: dc1
+
+# --- Example 3: Development Cluster with Cilium ---
+# kube_version: "1.30"
+# container_runtime: "containerd"
+# containerd_version: "latest"
+# pod_network_cidr: 10.244.0.0/16
+# install_cni: true
+# cni_plugin: "cilium"
+# cilium_version: "1.14.5"
+# install_argocd: true
+# node_labels:
+#   environment: development
+#   purpose: testing
+
+# --- Example 4: Minimal Setup (No CNI, No Add-ons) ---
+# kube_version: "1.30"
+# container_runtime: "containerd"
+# containerd_version: "latest"
+# pod_network_cidr: 10.244.0.0/16
+# install_cni: false  # Install CNI manually
+# install_argocd: false

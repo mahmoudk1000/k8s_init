@@ -2,24 +2,13 @@
 - name: Add Nodes to /etc/hosts
   ansible.builtin.lineinfile:
     path: /etc/hosts
-    line: '{{ hostvars[item].ansible_host }} {{ item }}'
+    line: '{{ hostvars[item].ansible_host }} {{ hostvars[item].node_name | default(item) }}'
   with_items: "{{ groups['cluster'] }}"
-- name: Create user
-  ansible.builtin.user:
-    name: '{{ kube_user }}'
-    createhome: true
-    shell: /bin/bash
-    state: present
 - name: Allow user to have passwordless sudo
   ansible.builtin.lineinfile:
     dest: /etc/sudoers
     line: '{{ kube_user }} ALL=(ALL) NOPASSWD: ALL'
     validate: visudo -cf %s
-- name: Setup authorized keys for the user
-  ansible.posix.authorized_key:
-    user: '{{ kube_user }}'
-    key: "{{ lookup('file', '~/.ssh/id_ansible.pub') }}"
-    state: present
 - name: Install necessary dependencies
   ansible.builtin.apt:
     name:
@@ -28,66 +17,112 @@
       - curl
       - software-properties-common
       - python3-pip
+      - gnupg
     state: present
     update_cache: true
 - name: Install containerd
   ansible.builtin.apt:
-    name: containerd
+    name: containerd{% if containerd_version != 'latest' %}={{ containerd_version }}{%
+      endif %}
     state: present
+  when: container_runtime == "containerd"
 - name: Restart containerd
   ansible.builtin.systemd_service:
     name: containerd
     enabled: true
     state: restarted
+  when: container_runtime == "containerd"
+- name: Add CRI-O repository key
+  ansible.builtin.get_url:
+    url: https://pkgs.k8s.io/addons:/cri-o:/stable:/v{{ crio_version }}/deb/Release.key
+    dest: /etc/apt/keyrings/cri-o-apt-keyring.asc
+    mode: '0644'
+    force: true
+  when: container_runtime == "crio"
+- name: Add CRI-O repository
+  ansible.builtin.apt_repository:
+    repo: deb [signed-by=/etc/apt/keyrings/cri-o-apt-keyring.asc] https://pkgs.k8s.io/addons:/cri-o:/stable:/v{{ crio_version }}/deb/
+      /
+    state: present
+    filename: cri-o
+  when: container_runtime == "crio"
+- name: Install CRI-O
+  ansible.builtin.apt:
+    name: cri-o
+    state: present
+    update_cache: true
+  when: container_runtime == "crio"
+- name: Start and enable CRI-O
+  ansible.builtin.systemd_service:
+    name: crio
+    enabled: true
+    state: started
+  when: container_runtime == "crio"
+
+# Kubernetes Installation
 - name: Add Kubernetes GPG key
   ansible.builtin.get_url:
-    url: https://pkgs.k8s.io/core:/stable:/v1.30/deb/Release.key
+    url: https://pkgs.k8s.io/core:/stable:/v{{ kube_version }}/deb/Release.key
     dest: /etc/apt/keyrings/kubernetes-apt-keyring.asc
     mode: '0644'
     force: true
-- name: Add Helm GPG key
-  ansible.builtin.apt_key:
-    url: https://baltocdn.com/helm/signing.asc
-    state: present
-    keyring: /usr/share/keyrings/helm.gpg
 - name: Add Kubernetes Repository
   ansible.builtin.apt_repository:
-    repo: deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.asc] https://pkgs.k8s.io/core:/stable:/v1.30/deb/
+    repo: deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.asc] https://pkgs.k8s.io/core:/stable:/v{{ kube_version }}/deb/
       /
     state: present
     filename: kubernetes
-- name: Add Helm Repository
-  ansible.builtin.apt_repository:
-    repo: deb [arch=amd64 signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/
-      all main
-    filename: helm-stable-debian
 - name: Install Kubernetes components
   ansible.builtin.apt:
-    name: [kubelet, kubeadm, kubectl, helm]
+    name: [kubelet, kubeadm, kubectl]
     state: present
     update_cache: true
-- name: Creates containerd.conf
+- name: Hold Kubernetes packages at current version
+  ansible.builtin.dpkg_selections:
+    name: '{{ item }}'
+    selection: hold
+  loop:
+    - kubelet
+    - kubeadm
+    - kubectl
+
+# Containerd Configuration
+- name: Creates containerd modules config
   ansible.builtin.copy:
     content: |
       overlay
       br_netfilter
-    dest: /etc/modules-load.d/kubernetes.conf
-    mode: '0400'
-- name: Create /etc/containers
+    dest: /etc/modules-load.d/containerd.conf
+    mode: '0644'
+  when: container_runtime == "containerd"
+- name: Create /etc/containerd directory
   ansible.builtin.file:
     state: directory
     path: /etc/containerd
     mode: '0755'
+  when: container_runtime == "containerd"
 - name: Configure Containerd
   ansible.builtin.shell:
     cmd: containerd config default > /etc/containerd/config.toml
     creates: /etc/containerd/config.toml
+  when: container_runtime == "containerd"
 - name: Configure containerd to work with systemd
   ansible.builtin.replace:
     path: /etc/containerd/config.toml
     regexp: SystemdCgroup = false
     replace: SystemdCgroup = true
+  when: container_runtime == "containerd"
   notify: restart containerd
+
+# CRI-O Configuration
+- name: Creates CRI-O modules config
+  ansible.builtin.copy:
+    content: |
+      overlay
+      br_netfilter
+    dest: /etc/modules-load.d/crio.conf
+    mode: '0644'
+  when: container_runtime == "crio"
 - name: Add overlay module
   community.general.modprobe:
     name: overlay
@@ -126,3 +161,28 @@
 - name: Install kubernetes for Python
   ansible.builtin.pip:
     name: [kubernetes, PyYAML]
+
+# Install Helm
+- name: Check if Helm is installed
+  ansible.builtin.command:
+    cmd: which helm
+  register: helm_check
+  failed_when: false
+  changed_when: false
+- name: Download Helm installation script
+  ansible.builtin.get_url:
+    url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+    dest: /tmp/get_helm.sh
+    mode: '0700'
+  when: helm_check.rc != 0
+- name: Install Helm
+  ansible.builtin.command:
+    cmd: /tmp/get_helm.sh
+  when: helm_check.rc != 0
+  register: helm_install
+  changed_when: "'Helm is now installed' in helm_install.stdout"
+- name: Clean up Helm installation script
+  ansible.builtin.file:
+    path: /tmp/get_helm.sh
+    state: absent
+  when: helm_check.rc != 0
