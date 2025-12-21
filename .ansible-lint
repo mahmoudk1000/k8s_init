@@ -35,11 +35,11 @@ enable_list:
 
 # Set the kinds of tasks to check
 kinds:
-  - playbook
-  - role
-  - tasks
-  - handlers
-  - vars
+  - name: playbook
+  - name: role
+  - name: tasks
+  - name: handlers
+  - name: vars
 
 # Mock modules and roles for linting
 mock_modules:
