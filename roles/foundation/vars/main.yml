@@ -1,2 +1,2 @@
 ---
-kube_user: '{{ ansible_user }}'
+foundation_kube_user: '{{ ansible_user }}'

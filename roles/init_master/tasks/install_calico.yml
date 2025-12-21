@@ -4,7 +4,7 @@
     name: projectcalico
     repo_url: https://docs.tigera.io/calico/charts
   environment:
-    KUBECONFIG: /home/{{ kube_user }}/.kube/config
+    KUBECONFIG: /home/{{ init_master_kube_user }}/.kube/config
 - name: Install Calico using Helm
   kubernetes.core.helm:
     name: calico
@@ -16,18 +16,19 @@
       installation:
         calicoNetwork:
           ipPools:
-            - cidr: '{{ pod_network_cidr }}'
+            - cidr: '{{ init_master_pod_network_cidr }}'
               encapsulation: VXLAN
   environment:
-    KUBECONFIG: /home/{{ kube_user }}/.kube/config
+    KUBECONFIG: /home/{{ init_master_kube_user }}/.kube/config
 - name: Wait for Calico pods to be ready
   ansible.builtin.command:
     cmd: kubectl wait --for=condition=ready pod -l k8s-app=calico-node -n calico-system
       --timeout=300s
   environment:
-    KUBECONFIG: /home/{{ kube_user }}/.kube/config
-  register: calico_wait
-  until: calico_wait.rc == 0
+    KUBECONFIG: /home/{{ init_master_kube_user }}/.kube/config
+  register: init_master_calico_wait
+  until: init_master_calico_wait.rc == 0
   retries: 5
   delay: 10
   failed_when: false
+  changed_when: false

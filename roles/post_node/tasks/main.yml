@@ -1,13 +1,14 @@
 ---
 - name: Set custom node name
   ansible.builtin.set_fact:
-    kubelet_node_name: '{{ node_name | default(inventory_hostname) }}'
+    post_node_kubelet_node_name: '{{ node_name | default(inventory_hostname) }}'
 - name: Apply node labels
   ansible.builtin.command:
-    cmd: kubectl label node {{ kubelet_node_name }} {{ item.key }}={{ item.value
+    cmd: kubectl label node {{ post_node_kubelet_node_name }} {{ item.key }}={{ item.value
       }} --overwrite
   environment:
-    KUBECONFIG: /home/{{ kube_user }}/.kube/config
+    KUBECONFIG: /home/{{ init_master_kube_user }}/.kube/config
   loop: '{{ (node_labels | default({})) | dict2items }}'
   when: [node_labels is defined, node_labels | length > 0]
+  changed_when: false
   delegate_to: "{{ groups['control_plane'][0] }}"

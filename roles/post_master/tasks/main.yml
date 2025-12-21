@@ -4,19 +4,19 @@
     file: nginx_controller.yml
     apply:
       become: false
-      become_user: '{{ kube_user }}'
+      become_user: '{{ init_master_kube_user }}'
 - name: Bash Completion for kubectl
   ansible.builtin.include_tasks:
     file: kubectl_cmp.yml
     apply:
       become: false
-      become_user: '{{ kube_user }}'
+      become_user: '{{ init_master_kube_user }}'
 - name: Install ArgoCD
   ansible.builtin.include_tasks:
     file: install_argocd.yml
     apply:
       become: false
-      become_user: '{{ kube_user }}'
+      become_user: '{{ init_master_kube_user }}'
   when: install_argocd | bool
 - name: Store join_command for workers
   ansible.builtin.include_tasks:

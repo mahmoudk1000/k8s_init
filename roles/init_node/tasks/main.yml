@@ -2,42 +2,43 @@
 - name: Check if node is already joined
   ansible.builtin.stat:
     path: /etc/kubernetes/kubelet.conf
-  register: node_already_joined
+  register: init_node_node_already_joined
 - name: Set custom node name
   ansible.builtin.set_fact:
-    kubelet_node_name: '{{ node_name | default(inventory_hostname) }}'
+    init_node_kubelet_node_name: '{{ node_name | default(inventory_hostname) }}'
 - name: Join additional control plane nodes to the cluster
   become: true
   become_method: ansible.builtin.sudo
   ansible.builtin.shell:
-    cmd: "{{ hostvars[groups['control_plane'][0]].join_command_control_plane }}\
-      \ --node-name={{ kubelet_node_name }} >> control_plane_joined.log"
+    cmd: "{{ hostvars[groups['control_plane'][0]].post_master_join_command_control_plane }}\
+      \ --node-name={{ init_node_kubelet_node_name }} >> control_plane_joined.log"
     chdir: $HOME
     creates: control_plane_joined.log
   when:
-    - not node_already_joined.stat.exists
+    - not init_node_node_already_joined.stat.exists
     - inventory_hostname in groups['control_plane']
     - inventory_hostname != groups['control_plane'][0]
-    - hostvars[groups['control_plane'][0]].join_command_control_plane is defined
+    - hostvars[groups['control_plane'][0]].post_master_join_command_control_plane is defined
 - name: Join worker nodes to the cluster
   become: true
   become_method: ansible.builtin.sudo
   ansible.builtin.shell:
-    cmd: "{{ hostvars[groups['control_plane'][0]].join_command }} --node-name={{ kubelet_node_name }}\
+    cmd: "{{ hostvars[groups['control_plane'][0]].post_master_join_command }} --node-name={{ init_node_kubelet_node_name }}\
       \ >> node_joined.log"
     chdir: $HOME
     creates: node_joined.log
   when:
-    - not node_already_joined.stat.exists
+    - not init_node_node_already_joined.stat.exists
     - inventory_hostname in groups['workers']
 - name: Wait for node to be ready
   ansible.builtin.command:
-    cmd: kubectl get node {{ kubelet_node_name }}
+    cmd: kubectl get node {{ init_node_kubelet_node_name }}
   environment:
-    KUBECONFIG: /home/{{ kube_user }}/.kube/config
-  register: node_status
-  until: node_status.rc == 0
+    KUBECONFIG: /home/{{ init_master_kube_user }}/.kube/config
+  register: init_node_node_status
+  until: init_node_node_status.rc == 0
   retries: 10
   delay: 10
+  changed_when: false
   delegate_to: "{{ groups['control_plane'][0] }}"
-  when: not node_already_joined.stat.exists
+  when: not init_node_node_already_joined.stat.exists

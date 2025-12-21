@@ -2,50 +2,51 @@
 - name: Check if cluster is already initialized
   ansible.builtin.stat:
     path: /etc/kubernetes/admin.conf
-  register: kubeadm_already_initialized
+  register: init_master_kubeadm_already_initialized
 - name: Check if this node is already in a cluster
   ansible.builtin.command:
     cmd: kubectl get nodes
   environment:
     KUBECONFIG: /etc/kubernetes/admin.conf
-  register: existing_nodes
+  register: init_master_existing_nodes
   failed_when: false
   changed_when: false
-  when: kubeadm_already_initialized.stat.exists
+  when: init_master_kubeadm_already_initialized.stat.exists
 - name: Set custom node name
   ansible.builtin.set_fact:
-    kubelet_node_name: '{{ node_name | default(inventory_hostname) }}'
+    init_master_kubelet_node_name: '{{ node_name | default(inventory_hostname) }}'
 - name: Initialize the first Kubernetes Control Plane
   become: true
   become_method: ansible.builtin.sudo
   ansible.builtin.command:
     cmd: >
       kubeadm init
-      --pod-network-cidr={{ pod_network_cidr }}
-      --node-name={{ kubelet_node_name }}
+      --pod-network-cidr={{ init_master_pod_network_cidr }}
+      --node-name={{ init_master_kubelet_node_name }}
       {% if control_plane_endpoint %}--control-plane-endpoint={{ control_plane_endpoint }}
       --upload-certs{% endif %}
   when:
-    - not kubeadm_already_initialized.stat.exists
+    - not init_master_kubeadm_already_initialized.stat.exists
     - inventory_hostname == groups['control_plane'][0]
-  register: kubeadm_init_output
+  register: init_master_kubeadm_init_output
+  changed_when: init_master_kubeadm_init_output.rc == 0
 - name: Create .kube directory
   become: true
   become_method: ansible.builtin.sudo
   ansible.builtin.file:
-    path: /home/{{ kube_user }}/.kube
+    path: /home/{{ init_master_kube_user }}/.kube
     state: directory
-    owner: '{{ kube_user }}'
-    group: '{{ kube_user }}'
+    owner: '{{ init_master_kube_user }}'
+    group: '{{ init_master_kube_user }}'
     mode: '0755'
 - name: Copy admin.conf to user's kube config
   become: true
   become_method: ansible.builtin.sudo
   ansible.builtin.copy:
     src: /etc/kubernetes/admin.conf
-    dest: /home/{{ kube_user }}/.kube/config
-    owner: '{{ kube_user }}'
-    group: '{{ kube_user }}'
+    dest: /home/{{ init_master_kube_user }}/.kube/config
+    owner: '{{ init_master_kube_user }}'
+    group: '{{ init_master_kube_user }}'
     mode: '0600'
     remote_src: true
 - name: Install Flannel CNI
@@ -73,15 +74,17 @@
   ansible.builtin.command:
     cmd: kubectl taint nodes --all  node-role.kubernetes.io/control-plane-
   environment:
-    KUBECONFIG: /home/{{ kube_user }}/.kube/config
+    KUBECONFIG: /home/{{ init_master_kube_user }}/.kube/config
   failed_when: false
+  changed_when: false
   when: inventory_hostname == groups['control_plane'][0]
 - name: Apply node labels for control plane
   ansible.builtin.command:
-    cmd: kubectl label node {{ kubelet_node_name }} {{ item.key }}={{ item.value
+    cmd: kubectl label node {{ init_master_kubelet_node_name }} {{ item.key }}={{ item.value
       }} --overwrite
   environment:
-    KUBECONFIG: /home/{{ kube_user }}/.kube/config
+    KUBECONFIG: /home/{{ init_master_kube_user }}/.kube/config
   loop: '{{ (node_labels | default({})) | dict2items }}'
   when: [node_labels is defined, node_labels | length > 0]
+  changed_when: false
   delegate_to: "{{ groups['control_plane'][0] }}"

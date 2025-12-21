@@ -7,7 +7,7 @@
 - name: Allow user to have passwordless sudo
   ansible.builtin.lineinfile:
     dest: /etc/sudoers
-    line: '{{ kube_user }} ALL=(ALL) NOPASSWD: ALL'
+    line: '{{ foundation_kube_user }} ALL=(ALL) NOPASSWD: ALL'
     validate: visudo -cf %s
 - name: Install necessary dependencies
   ansible.builtin.apt:
@@ -153,6 +153,7 @@
   ansible.builtin.command:
     cmd: swapoff -a
   when: ansible_swaptotal_mb > 0
+  changed_when: false
 - name: Disable SWAP in fstab
   ansible.builtin.lineinfile:
     path: /etc/fstab
@@ -166,7 +167,7 @@
 - name: Check if Helm is installed
   ansible.builtin.command:
     cmd: which helm
-  register: helm_check
+  register: foundation_helm_check
   failed_when: false
   changed_when: false
 - name: Download Helm installation script
@@ -174,15 +175,15 @@
     url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
     dest: /tmp/get_helm.sh
     mode: '0700'
-  when: helm_check.rc != 0
+  when: foundation_helm_check.rc != 0
 - name: Install Helm
   ansible.builtin.command:
     cmd: /tmp/get_helm.sh
-  when: helm_check.rc != 0
-  register: helm_install
-  changed_when: "'Helm is now installed' in helm_install.stdout"
+  when: foundation_helm_check.rc != 0
+  register: foundation_helm_install
+  changed_when: "'Helm is now installed' in foundation_helm_install.stdout"
 - name: Clean up Helm installation script
   ansible.builtin.file:
     path: /tmp/get_helm.sh
     state: absent
-  when: helm_check.rc != 0
+  when: foundation_helm_check.rc != 0

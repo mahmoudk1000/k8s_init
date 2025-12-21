@@ -2,16 +2,17 @@
 - name: Generate kubectl completion file for bash
   ansible.builtin.command:
     cmd: kubectl completion bash
-  register: bash_completion
+  register: post_master_bash_completion
+  changed_when: false
 - name: Save completion file to disk
   ansible.builtin.copy:
-    content: '{{ bash_completion.stdout }}'
-    dest: /home/{{ kube_user }}/.kube/completion.bash.inc
-    owner: '{{ kube_user }}'
-    group: '{{ kube_user }}'
+    content: '{{ post_master_bash_completion.stdout }}'
+    dest: /home/{{ init_master_kube_user }}/.kube/completion.bash.inc
+    owner: '{{ init_master_kube_user }}'
+    group: '{{ init_master_kube_user }}'
     mode: '0755'
     remote_src: true
 - name: Source kubectl completion in .bashrc
   ansible.builtin.lineinfile:
-    path: /home/{{ kube_user }}/.bashrc
-    line: source '/home/{{ kube_user }}/.kube/completion.bash.inc'
+    path: /home/{{ init_master_kube_user }}/.bashrc
+    line: source '/home/{{ init_master_kube_user }}/.kube/completion.bash.inc'
