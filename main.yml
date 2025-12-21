@@ -1,4 +1,18 @@
 ---
+- name: Pre-flight Configuration Validation
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Validate CNI plugin selection
+      ansible.builtin.assert:
+        that: ["cni_plugin in ['flannel', 'calico', 'cilium']"]
+        fail_msg: >-
+          Invalid CNI plugin '{{ cni_plugin }}' selected.
+          Only one CNI plugin can be chosen. Valid options are: flannel, calico,
+          or cilium.
+        success_msg: 'CNI plugin validation passed: {{ cni_plugin }}'
+      when: install_cni | default(true) | bool
 - name: Prep Nodes
   hosts: cluster
   become: true

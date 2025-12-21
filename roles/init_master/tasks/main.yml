@@ -49,6 +49,17 @@
     group: '{{ init_master_kube_user }}'
     mode: '0600'
     remote_src: true
+- name: Validate CNI plugin configuration
+  ansible.builtin.assert:
+    that:
+      - cni_plugin is defined
+      - cni_plugin in ['flannel', 'calico', 'cilium']
+    fail_msg: >-
+      Invalid CNI configuration detected.
+      You must select exactly one CNI plugin from: flannel, calico, or cilium.
+      Current value: {{ cni_plugin | default('undefined') }}
+    success_msg: CNI plugin {{ cni_plugin }} will be installed
+  when: install_cni | bool
 - name: Install Flannel CNI
   ansible.builtin.include_tasks:
     file: install_flannel.yml
@@ -80,8 +91,8 @@
   when: inventory_hostname == groups['control_plane'][0]
 - name: Apply node labels for control plane
   ansible.builtin.command:
-    cmd: kubectl label node {{ init_master_kubelet_node_name }} {{ item.key }}={{ item.value
-      }} --overwrite
+    cmd: kubectl label node {{ init_master_kubelet_node_name }} {{ item.key }}={{
+      item.value }} --overwrite
   environment:
     KUBECONFIG: /home/{{ init_master_kube_user }}/.kube/config
   loop: '{{ (node_labels | default({})) | dict2items }}'
